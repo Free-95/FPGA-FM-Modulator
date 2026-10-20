@@ -1,0 +1,23 @@
+# Ignore generated Vivado project build directories
+vivado_project/
+*.runs/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.sim/
+*.srcs/
+*.gen/
+.Xil/
+*.xpr
+
+# Ignore Vivado logs, journals, and str files
+*.jou
+*.log
+*.str
+*.pb
+*.dcp
+*.rpt
+*.bak
+
+# MATLAB temporary files
+*.asv
