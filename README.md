@@ -9,7 +9,8 @@ A synchronous and all-digital **Frequency Modulation (FM) Synthesizer** implemen
 
 This repository provides a complete mathematical derivation from continuous-time analog FM theory to discrete-time fixed-point hardware arithmetic, and a step-by-step implementation guide for this project.
 
->[!WARNING] **Disclaimer:** Over-the-air RF transmission in regulated bands without a license is prohibited in most jurisdictions. This hardware design is intended strictly for educational and on-chip logic analysis purposes.
+>[!WARNING]
+>Over-the-air RF transmission in regulated bands without a license is prohibited in most jurisdictions. This hardware design is intended strictly for educational and on-chip logic analysis purposes.
 
 ---
 
@@ -22,16 +23,16 @@ $$f_i(t) = f_c + \Delta f \cdot m(t)$$
 
 Since instantaneous angular frequency is the time-derivative of instantaneous phase ($\omega_i(t) = 2\pi f_i(t) = \frac{d\theta(t)}{dt}$), integrating with respect to time yields the instantaneous phase $\theta(t)$ and the standard analog FM signal $s(t)$:
 
-$$\theta(t) = 2\pi f_c t + 2\pi \Delta f \int_{0}^{t} m(\tau)\,d\tau$$
+$$\theta(t) = 2\pi f_c t + 2\pi \Delta f \int_{0}^{t} m(\tau)d\tau$$
 
-$$s(t) = A_c \cos\left( 2\pi f_c t + 2\pi \Delta f \int_{0}^{t} m(\tau)\,d\tau \right)$$
+$$s(t) = A_c \cos\left( 2\pi f_c t + 2\pi \Delta f \int_{0}^{t} m(\tau)d\tau \right)$$
 
 ---
 
 ### 1.2 Discretization of FM signal's phase & Mapping to an $N$-Bit Hardware Phase Accumulator
-To discrete the analog FM signal $s(t)$, we use a sampling frequency $F_s$. Hence the continuous time $t$ is replaced by $n T_s = \frac{n}{F_s}$ and converts the continuous integral into discrete Riemann sum:
+To obtain a digital signal from the analog FM signal $s(t)$, we use a sampling frequency $F_s$. Hence the continuous time $t$ is replaced by $n T_s = \frac{n}{F_s}$ and the continuous integral is converted into discrete Riemann sum:
 
-$$\theta[n] = 2\pi \frac{f_c}{F_s} n + 2\pi \frac{\Delta f}{F_s} \sum_{k=0}^{n} m[k]$$ $$\therefore \theta[n] = 2\pi \frac{f_c}{F_s} (n-1) + 2\pi \frac{\Delta f}{F_s} \sum_{k=0}^{n-1} m[k] + 2\pi \frac{f_c}{F_s} + 2\pi \frac{\Delta f}{F_s} m[n]$$ $$\therefore \theta[n] = \theta[n-1] + 2\pi\left( \frac{f_c}{F_s} + \frac{\Delta f}{F_s} m[n] \right)$$
+$$\theta[n] = 2\pi \frac{f_c}{F_s} n + 2\pi \frac{\Delta f}{F_s} \sum_{k=0}^{n} m[k]$$ $$\therefore \hspace{0.1cm}\theta[n] = 2\pi \frac{f_c}{F_s} (n-1) + 2\pi \frac{\Delta f}{F_s} \sum_{k=0}^{n-1} m[k] + 2\pi \frac{f_c}{F_s} + 2\pi \frac{\Delta f}{F_s} m[n]$$ $$\therefore \hspace{0.1cm}\theta[n] = \theta[n-1] + 2\pi\left( \frac{f_c}{F_s} + \frac{\Delta f}{F_s} m[n] \right)$$
 
 Before going into further math, we should first fix certain parameters and decide on the system specifications:
 
@@ -45,28 +46,34 @@ Before going into further math, we should first fix certain parameters and decid
 | **Peak Frequency Deviation** | $\Delta f$ | $\pm 75\text{ kHz}$ |
 | **Spurious-Free Dynamic Range** *- for s[n]* | $\text{SFDR}_s$ | $48\text{ dB}$ |
 
-These parameters are arbitrarily chosen and can be varied as per the designer's choice or system requirements, except for $F_s$ as it is selected carefully such that we have enough no. of samples per cycle for carrier signal to be represented optimally.
+These parameters are arbitrarily chosen and can be varied as per the designer's choice or system requirements, but keep in mind that $F_s$ should be selected carefully such that we have enough no. of samples per cycle for carrier signal to be represented optimally.
 
-To synthesize discrete signals of different frequencies, we just need to know how many cycles can a signal can cover in one second *OR* how much more cycles does the signal take with respect to the sampling frequency $-$ the lesser the frequency the more cycles it will take. So we can just implement the phase of a signal using an accumulator. Imagine we divide the complete $2\pi$ phase cycle into a number of points and we use the phase accumulator as a pointer with modulo (%) to jump over those points. *The slowest signal will take more time and jump over just one point in one clock cycle of sampling frequency, but the fastest signal i.e., the sampling frequency itself can jump over all of those points in one clock cycle.* So the no. of points will be directly proportional to the frequency. In our case, the slowest frequency is $\Delta f_{res}$, and its number of points would be 1 per cycle. Let the total number of points be $L$, then $L$ can be expressed as $-$
+To synthesize digital signals of different frequencies, we just need to know how many cycles can a signal can cover in one second *OR* how much more cycles does the signal take with respect to the sampling frequency $-$ the lesser the frequency the more cycles it will take. So we can just implement the phase of a signal using an accumulator. Imagine we divide the complete $2\pi$ phase circle into a number of points and we use the phase accumulator as a pointer with modulo (%) to jump over those points. *The slowest signal will take more time and jump over just one point in one clock cycle of sampling frequency, but the fastest signal i.e., the sampling frequency itself can jump over all of those points in one clock cycle.* So the no. of points will be directly proportional to the frequency. In our case, the slowest frequency is $\Delta f_{res}$, and its number of points would be 1 per cycle. Let the total number of points be $L$, then $L$ can be expressed as $-$
+
 $$\frac{L}{1} = \frac{F_{s}}{\Delta f_{res}} = \frac{200 \times 10^6}{0.1} = 2 \times 10^9$$
+
 To store this much no. of points, we would require $N$ no. of bits which can be expressed as $-$
+
 $$N = \log_{2}(L) = \log_{2}(2 \times 10^9) = 30.9 \approx 31 \hspace{0.1cm} \text{bits}$$
 
-In an $N$-bit Phase Accumulator ($N = 31$), the $2\pi\text{ radian}$ ($360^\circ$) phase circle is mapped across $2^{31}$ binary states. Therefore, advancing one point means moving forward on phase circle by $\frac{2\pi}{2^{31}}$ radians. Hence, to move forward by $\theta[n]$ radians, we need to advance the circle by an integral multiple of $\frac{2\pi}{2^{31}}$ radians i.e., $$\theta[n] = \frac{2\pi}{2^{31}} \cdot \Phi[n]$$ where $\Phi[n] \in \{0,1,2,..., 2^{31}-1\}$
+In an $N$-bit Phase Accumulator ($N = 31$), the $2\pi\text{ radian}$ ($360^\circ$) phase circle is mapped across $2^{31}$ binary states. Therefore, advancing one point means moving forward on phase circle by $\frac{2\pi}{2^{31}}$ radians. Hence, to move forward by $\theta[n]$ radians, we need to advance the circle by an integral multiple of $\frac{2\pi}{2^{31}}$ radians i.e., $$\theta[n] = \frac{2\pi}{2^{31}} \cdot \Phi[n]$$ where $\Phi[n] \in \\{0,1,2,..., 2^{31}-1\\}$.
 
 As we can't realize phase in terms of radians in digital arithmetic, we realize it in terms of $\Phi[n]$ which is an integer. It can be expressed as below:
+
 $$\Phi[n] = \frac{2^{31}}{2\pi} \cdot \theta[n]$$
+
 Substituting the $\theta[n]$ equation, we get $-$
+
 $$\Phi[n] = \left( \Phi[n-1] + \frac{2^{31} \cdot f_c}{F_s} + \left(\frac{2^{31} \cdot \Delta f}{F_s}\right) \cdot m[n] \right) \bmod 2^{31}$$
 
 ---
 
-### 1.3 Final Discrete FM Signal with Fixed-Point Normalization
-To achieve a Spurious Free Dynamic Range $(\text{SFDR}_m)$ of **$90\text{ dB}$**, the no. of bits to represent the message signal value, by formula, must be $\lceil 90 / 6.02 \rceil = \textbf{15\text{ signed bits}}$ (1 sign bit + 14 magnitude bits). 
+### 1.3 Final Digital FM Signal with Fixed-Point Normalization
+To achieve a Spurious Free Dynamic Range $(\text{SFDR}_m)$ of **$90\text{ dB}$**, the no. of bits to represent the message signal value, by formula, must be $\lceil 90 / 6.02 \rceil = 15\text{ signed bits}$ (1 sign bit + 14 magnitude bits). 
 
-Similarly, to achieve the $\text{SFDR}_s$ of $48 \hspace{0.1cm} \text{dB}$, the no. of bits to represent the FM signal must be $\lceil 48 / 6.02 \rceil = \textbf{8\text{ signed bits}}$ (1 sign bit + 7 magnitude bits).
+Similarly, to achieve the $\text{SFDR}_s$ of **$48\text{ dB}$**, the no. of bits to represent the FM signal must be $\lceil 48 / 6.02 \rceil = 8\text{ signed bits}$ (1 sign bit + 7 magnitude bits).
 
-Instead of outputting a floating-point wave between $-1.0$ and $+1.0$, we output a `Message_Tone` ($M_{\text{tone}}[n]$) that swings between $-16,384$ and $+16,383$ ($\pm 2^{14}$), and divide it by $2^{14}$ by using arithmetic right-shift by 14 bits $($`>>> 14`$)$. 
+Instead of outputting a floating-point wave between $-1.0$ and $+1.0$, we output a `Message_Tone` ($M_{\text{tone}}[n]$) that swings between $-16,384$ and $+16,383$ ($\pm 2^{14}$), and divide it by $2^{14}$ by using arithmetic right-shift by 14 bits (`>>> 14`). 
 
 Now let's derive the exact numerical expression of $s[n]$. Assume the term $\frac{2^{31} \cdot \Delta f}{F_s}$ as $\Delta P_{dev}$, the term $\frac{2^{31} \cdot f_c}{F_s}$ as $\Delta P_c$, and the step-size of phase accumulator for $m[n]$ as $\Delta P_m$.
 
@@ -77,6 +84,7 @@ Now let's derive the exact numerical expression of $s[n]$. Assume the term $\fra
 3. $\Delta P_c = \frac{2^{31} \cdot \hspace{0.1cm} 10.7 \hspace{0.05cm}\text{MHz}}{200 \hspace{0.1cm}\text{MHz}} \approx 114890375$
 
 The Phase Accumulator expresssion thus becomes $-$
+
 $$\Phi[n] = \left( \Phi[n-1] + 114,890,375 + \left\lfloor\frac{805,306 \cdot M_{\text{tone}}[n]}{2^{14}} \right\rfloor \right) \bmod 2^{31}$$
 
 The closed-form digital FM output $s[n]$ to be synthesized in hardware is therefore:
@@ -95,7 +103,7 @@ To implement the above complicated equation of $s[n]$ in hardware, we break it d
 
 3. Multiply the synthesized $M_{tone}[n]$ instantaneous values with the constant $805,306$ using **Multiplier IP** of Vivado.
 
-4. Arithmetic-right shift $($`>>>`$)$ the resultant product of $M_{tone}[n]$ and $805,306$ by 14 bits.
+4. Arithmetic-right shift (`>>>`) the resultant product of $M_{tone}[n]$ and $805,306$ by 14 bits.
 
 5. Add the resultant signed arithmetic-shifted deviation value to the center carrier frequency value $114,890,375$ using **Adder/Subtractor IP** of Vivado.
 
@@ -208,7 +216,7 @@ In the **Trigger Setup** pane (bottom-right of the ILA dashboard), click the **`
 
 ## 6. Frequency Spectrum Verification using MATLAB
 
-- Export the captured ILA waveform buffer to CSV $($`File -> Export -> Export ILA Data`$)$, select the Format as `CSV`. The CSV will contain six columns: `Sample in Buffer`, `Sample in Window`, `TRIGGER`, `Message_Tone`, `Fm_Plus_Carrier`, and `ModulatedSignalOut`.
+- Export the captured ILA waveform buffer to CSV (`File -> Export -> Export ILA Data`), select the Format as `CSV`. The CSV will contain six columns: `Sample in Buffer`, `Sample in Window`, `TRIGGER`, `Message_Tone`, `Fm_Plus_Carrier`, and `ModulatedSignalOut`.
 
 - Put the CSV file in `matlab` directory and run `./matlab/plot_fm_spectrum.m` in MATLAB to compute the $2^{20}$-point zero-padded Hann-windowed FFT of `ModulatedSignalOut` (Column 6) at $F_s = 200\text{ MHz}$.
 
